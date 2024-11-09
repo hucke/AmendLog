@@ -210,7 +210,7 @@ def main() :
     # for info in object_isp :
     #     print(info)
 
-    draw_gantt(begin_time, end_time, path[0] + ".png")
+    # draw_gantt(begin_time, end_time, path[0] + ".png")
 
 #########################################################################
 
