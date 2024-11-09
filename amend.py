@@ -65,12 +65,6 @@ def main() :
 
     log_db = []
 
-    date = "01-01"
-    loglevel = "D"
-    tag = "ddk"
-    pid = "0"
-    pid = pid.rjust(5) # align 5 digit
-
     # for line in file_ddk_log_in:
     line_no = 0
     lines = file_ddk_log_in.readlines()
@@ -163,7 +157,7 @@ def main() :
         return
 
     for l in log_db :
-        file_ddk_log_out.write(date + " " + l[0] + " " + pid + " " + l[1] + " " + loglevel + " " + tag + " " + l[2])
+        file_ddk_log_out.write(l[0] + " " + l[1] + " " + l[2])
 
         if l[2].find("DICO_Object_3aa") >= 0 :
             # print(l[0] + ":" + l[2].strip('\n'))
