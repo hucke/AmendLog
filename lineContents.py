@@ -1,6 +1,7 @@
 class lineContents():
-    def __init__(self, time, tid, str):
+    def __init__(self, time, tid, log, src):
         self.time = time
         self.tid = tid
-        self.log = str
+        self.log = log
+        self.src = src
         

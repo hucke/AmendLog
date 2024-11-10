@@ -74,7 +74,7 @@ def main() :
         found = re.findall("\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
         # print(found)
 
-        if len(found[0]) < 3 :
+        if len(found) == 0 or len(found[0]) < 3 :
             print(f"[W]irregular format {line_no} line")
             print(line)
             continue
@@ -83,7 +83,7 @@ def main() :
         task = found[0][1]
         body = found[0][2]
 
-        data = lineContents(time, task, line)
+        data = lineContents(time, task, body, line)
 
         if check_end(body) :
             print("[I]log end on {} lines".format(line_no))
@@ -95,8 +95,7 @@ def main() :
         elif body.startswith('Dump') == True:
             file_ddk_sfr.write(body[5:] + '\n')        # 'Dump'를 제거하고 저장.
         else:
-            item = [time, task, body, data]
-            log_db.append(item)
+            log_db.append(data)
 
         if len(ddk_version) == 0 :
             ddk_version = print_version(file_summary, body)
@@ -105,9 +104,9 @@ def main() :
     file_ddk_log_in.close()
 
     # Sorting by time
-    log_db.sort(key = lambda x : x[3].time) # x[3]는 lineContents 데이터
+    log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
 
-    print("--- log time: {} - {}".format(log_db[0][0], log_db[len(log_db)-1][0]))
+    print("--- log time: {} - {}".format(log_db[0].time, log_db[len(log_db)-1].time))
 
     # Finding
     global object_taa
@@ -117,10 +116,12 @@ def main() :
 
     state_taa = [0, 0, 0, 0, 0, 0, 0, 0, 0]
     state_isp = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    if log_db[0][0] != '' :
-        begin_time = float(log_db[0][0])
-    if log_db[-1][0] != '' :
-        end_time = float(log_db[-1][0])
+    if len(log_db) > 0 :
+        begin_time = float(log_db[0].time)
+        end_time = float(log_db[-1].time)
+    else :
+        begin_time = float(0)
+        end_time = float(0)
 
     for i in range(1, 10) :
         object_taa.append([[0.0, 0.0]])
@@ -133,41 +134,44 @@ def main() :
         return
 
     for l in log_db :
-        # file_ddk_log_out.write(l[0] + " " + l[1] + " " + l[2])
-        file_ddk_log_out.write(l[3].log)
+        full_log = l.src
+        log = l.log
+        time = l.time
 
-        if l[2].find("DICO_Object_3aa") >= 0 :
-            # print(l[0] + ":" + l[2].strip('\n'))
-            # print(l[0] + ":" + l[2], end='')
-            streamId = l[2][ l[2].find("[S")+2 ]
+        file_ddk_log_out.write(full_log)
+
+        if log.find("DICO_Object_3aa") >= 0 :
+            # print(log + ":" + l[2].strip('\n'))
+            # print(log + ":" + l[2], end='')
+            streamId = log[ log.find("[S")+2 ]
             sId = int(streamId)
             cnt = state_taa[sId]
             # print("S{} state({})".format(sId, cnt))
-            if l[2].find("Create") >= 0 and l[2].find("[E]") >= 0 :
-                object_taa[sId][cnt][0] = float(l[0])
-                object_taa[sId][cnt][1] = end_time - float(l[0])
+            if log.find("Create") >= 0 and log.find("[E]") >= 0 :
+                object_taa[sId][cnt][0] = float(time)
+                object_taa[sId][cnt][1] = end_time - float(time)
 
-            if l[2].find("Destroy") >= 0 :
+            if log.find("Destroy") >= 0 :
                 if object_taa[sId][cnt][0] == 0.0 :
                     object_taa[sId][cnt][0] = begin_time
-                object_taa[sId][cnt][1] = float(l[0]) - object_taa[sId][cnt][0]
+                object_taa[sId][cnt][1] = float(time) - object_taa[sId][cnt][0]
                 object_taa[sId].append([0.0, 0.0])
                 state_taa[sId] = cnt + 1
 
-        if l[2].find("DICO_Object_Isp") >= 0 :
-            # print(l[0] + ":" + l[2].strip('\n'))
-            # print(l[0] + ":" + l[2], end='')
-            streamId = l[2][ l[2].find("[S")+2 ]
+        if log.find("DICO_Object_Isp") >= 0 :
+            # print(log + ":" + l[2].strip('\n'))
+            # print(log + ":" + l[2], end='')
+            streamId = log[ log.find("[S")+2 ]
             sId = int(streamId)
             cnt = state_isp[sId]
-            if l[2].find("Create") >= 0 and l[2].find("[E]") >= 0 :
-                object_isp[sId][cnt][0] = float(l[0])
-                object_isp[sId][cnt][1] = end_time - float(l[0])
+            if log.find("Create") >= 0 and log.find("[E]") >= 0 :
+                object_isp[sId][cnt][0] = float(time)
+                object_isp[sId][cnt][1] = end_time - float(time)
 
-            if l[2].find("Destroy") >= 0 :
+            if log.find("Destroy") >= 0 :
                 if object_isp[sId][cnt][0] == 0.0 :
                     object_isp[sId][cnt][0] = begin_time
-                object_isp[sId][cnt][1] = float(l[0]) - object_isp[sId][cnt][0]
+                object_isp[sId][cnt][1] = float(time) - object_isp[sId][cnt][0]
                 object_isp[sId].append([0.0, 0.0])
                 state_isp[sId] = cnt + 1
 
