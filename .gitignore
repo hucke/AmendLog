@@ -1,4 +1,5 @@
 backup
-sample_input
+sample_*
 
 .vscode
+__pycache__/
