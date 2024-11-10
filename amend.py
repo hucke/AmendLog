@@ -51,17 +51,15 @@ def main() :
         sys.exit()
 
     path = input_file_path.rsplit('.', maxsplit=1)
-    out_file_log = path[0] + ".ddk.log"
     out_file_sfr  = path[0] + ".ddk.sfr"
-    file_name_sum  = path[0] + ".ddk.summary"
 
     # print("File path : " + file_path)
     # print("File path : " + out_file_path)
 
     file_ddk_log_in = open(input_file_path, 'r')
-    file_ddk_log_out = open(out_file_log, 'w')
+    file_ddk_log_out = open(path[0] + ".ddk.log", 'w')
     file_ddk_sfr = open(out_file_sfr, 'w')
-    file_summary = open(file_name_sum, 'w')
+    file_summary = open(path[0] + ".ddk.summary", 'w')
 
     ddk_version = ""
 
@@ -71,44 +69,20 @@ def main() :
     line_no = 0
     lines = file_ddk_log_in.readlines()
     for line in lines :
-        if line.isalnum() == True:
-            print("line: {} isalnum".format(line_no))
-            continue
-
         line_no = line_no + 1
 
-        ###################################################
-        ## check line validation
+        found = re.findall("\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
+        # print(found)
 
-        if line.find('[') == -1 : # null charactor + string line
-            print("[W]irregular format {} line: {}".format(line_no, line.strip('\n')))
-            break
-
-        i = line.find('[')
-        line = line[i:]
-
-        if len(line) < 20 : # broken line
-            print("[W]irregular format {} line({}): {}".format(line_no, len(line), line.strip('\n')))
+        if len(found[0]) < 3 :
+            print(f"[W]irregular format {line_no} line")
+            print(line)
             continue
 
-        ###################################################
+        time = found[0][0]
+        task = found[0][1]
+        body = found[0][2]
 
-        token = line.split(' ', maxsplit=2)
-
-        if len(token) < 3 :
-            print("[W]warning: skip {} line. token size({}) > {}".format(line_no, len(token), line.strip('\n')))
-            continue
-        # print(token[0], token[1], token[2])
-
-        time = line[1:13]
-        # print("{} : {}".format(token[0], time))
-
-        task = line[16]
-        task = task.rjust(5) # align 5 digit
-
-        # body = token[2]
-        body = line[19:]
-        body = body.lstrip()
         data = lineContents(time, task, line)
 
         if check_end(body) :
@@ -117,10 +91,9 @@ def main() :
 
         # save
         if body.startswith('ISP_FimcItpChainV1P10P0::Dump') == True :
-            file_ddk_sfr.write(body)
-
-        if body.startswith('Dump') == True:
-            file_ddk_sfr.write(body[5:])        # 'Dump'를 제거하고 저장.
+            file_ddk_sfr.write(body + '\n')
+        elif body.startswith('Dump') == True:
+            file_ddk_sfr.write(body[5:] + '\n')        # 'Dump'를 제거하고 저장.
         else:
             item = [time, task, body, data]
             log_db.append(item)
@@ -132,7 +105,7 @@ def main() :
     file_ddk_log_in.close()
 
     # Sorting by time
-    log_db.sort(key = lambda x : x[3].time)
+    log_db.sort(key = lambda x : x[3].time) # x[3]는 lineContents 데이터
 
     print("--- log time: {} - {}".format(log_db[0][0], log_db[len(log_db)-1][0]))
 
