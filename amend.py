@@ -3,6 +3,8 @@ import sys
 import matplotlib.pyplot as plt
 import os.path
 from os import path
+import re
+from lineContents import lineContents
 
 begin_time = 0.0
 end_time = 0.0
@@ -107,6 +109,7 @@ def main() :
         # body = token[2]
         body = line[19:]
         body = body.lstrip()
+        data = lineContents(time, task, line)
 
         if check_end(body) :
             print("[I]log end on {} lines".format(line_no))
@@ -119,7 +122,7 @@ def main() :
         if body.startswith('Dump') == True:
             file_ddk_sfr.write(body[5:])        # 'Dump'를 제거하고 저장.
         else:
-            item = [time, task, body]
+            item = [time, task, body, data]
             log_db.append(item)
 
         if len(ddk_version) == 0 :
@@ -129,7 +132,7 @@ def main() :
     file_ddk_log_in.close()
 
     # Sorting by time
-    log_db.sort()
+    log_db.sort(key = lambda x : x[3].time)
 
     print("--- log time: {} - {}".format(log_db[0][0], log_db[len(log_db)-1][0]))
 
@@ -157,7 +160,8 @@ def main() :
         return
 
     for l in log_db :
-        file_ddk_log_out.write(l[0] + " " + l[1] + " " + l[2])
+        # file_ddk_log_out.write(l[0] + " " + l[1] + " " + l[2])
+        file_ddk_log_out.write(l[3].log)
 
         if l[2].find("DICO_Object_3aa") >= 0 :
             # print(l[0] + ":" + l[2].strip('\n'))
