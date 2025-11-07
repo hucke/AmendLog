@@ -2,6 +2,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import os.path
+from pathlib import Path
 from os import path
 import re
 from lineContents import lineContents
@@ -13,12 +14,10 @@ object_taa = []
 object_isp = []
 
 #########################################################################
-def print_version(file, log) :
+def print_version(log) :
     i = log.find('DDK revision:')
     if i != -1 :
-        ver = log[i:i+23]
-        file.write(ver)
-        return ver
+        return log[i:i+23] # 'DDK revision: x.x.x'
     return ""
 #########################################################################
 def check_end(log) :
@@ -28,60 +27,52 @@ def check_end(log) :
     else :
         return False
 #########################################################################
-def check_parameter(param) :
-    
-    if path.exists(param) == False:
-        print(param + " is not exist")
-        return False
-
-    if path.isfile(param) :
-        print("file: " + param)
-    elif path.isdir(param) :
-        print("folder: " + param)
-
+def check_parameter(param : str) -> bool :
+    if path.exists(param) and path.isfile(param) :
+        return True
     return True
+
+def extract_ascii_from_binary(file_path : str) -> list:
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    
+    ascii_chars = [chr(b) for b in data if 0 <= b <= 127 ]
+    ascii_text = ''.join(ascii_chars)
+    return ascii_text.splitlines()
+
+def parsing_log_lines(line : str) -> tuple:
+    found = re.findall(r"\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
+    if len(found) == 0 or len(found[0]) < 3 :
+        return False, "", "", ""
+    else :
+        return True, found[0][0], found[0][1], found[0][2]
+
 #########################################################################
 def main() :
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 2 :
         print("amend.py <kernel log file>")
         sys.exit()
-
-    input_file_path = sys.argv[1]
-    if check_parameter(input_file_path) == False :
+    elif not check_parameter(sys.argv[1]) :
+        print(sys.argv[1] + " is not found.")
         sys.exit()
 
-    path = input_file_path.rsplit('.', maxsplit=1)
-    out_file_sfr  = path[0] + ".ddk.sfr"
-
-    # print("File path : " + file_path)
-    # print("File path : " + out_file_path)
-
-    file_ddk_log_in = open(input_file_path, 'r')
-    file_ddk_log_out = open(path[0] + ".ddk.log", 'w')
-    file_ddk_sfr = open(out_file_sfr, 'w')
-    file_summary = open(path[0] + ".ddk.summary", 'w')
+    file_path = Path(sys.argv[1])
 
     ddk_version = ""
-
     log_db = []
+    sfr_db = []
 
-    # for line in file_ddk_log_in:
-    line_no = 0
-    lines = file_ddk_log_in.readlines()
-    for line in lines :
-        line_no = line_no + 1
+    in_log = extract_ascii_from_binary(file_path)
+    for line_no, line in enumerate(in_log, 1) :
 
-        found = re.findall(r"\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
-        # print(found)
+        if len(line) == 0 :
+            continue
 
-        if len(found) == 0 or len(found[0]) < 3 :
+        ok, time, task, body = parsing_log_lines(line)
+        if not ok :
             print(f"[W]irregular format {line_no} line")
             print(line)
             continue
-
-        time = found[0][0]
-        task = found[0][1]
-        body = found[0][2]
 
         data = lineContents(time, task, body, line)
 
@@ -91,22 +82,19 @@ def main() :
 
         # save
         if body.startswith('ISP_FimcItpChainV1P10P0::Dump') == True :
-            file_ddk_sfr.write(body + '\n')
+            sfr_db.append(body + '\n')
         elif body.startswith('Dump') == True:
-            file_ddk_sfr.write(body[5:] + '\n')        # 'Dump'를 제거하고 저장.
+            sfr_db.append(body[5:] + '\n')        # 'Dump'를 제거하고 저장.
         else:
             log_db.append(data)
 
         if len(ddk_version) == 0 :
-            ddk_version = print_version(file_summary, body)
+            ddk_version = print_version(body)
 
-    # Closing input file
-    file_ddk_log_in.close()
-
-    # Sorting by time
-    log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
-
-    print("--- log time: {} - {}".format(log_db[0].time, log_db[len(log_db)-1].time))
+    if len(log_db) > 0 :
+        # Sorting by time
+        log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
+        print("--- log time: {} - {}".format(float(log_db[0].time), float(log_db[-1].time)))
 
     # Finding
     global object_taa
@@ -130,15 +118,9 @@ def main() :
         state_isp.append(0)
     # print(object_taa)
 
-    if len(log_db) == 0 :
-        return
-
     for l in log_db :
-        full_log = l.src
         log = l.log
         time = l.time
-
-        file_ddk_log_out.write(full_log)
 
         if log.find("DICO_Object_3aa") >= 0 :
             # print(log + ":" + l[2].strip('\n'))
@@ -175,13 +157,30 @@ def main() :
                 object_isp[sId].append([0.0, 0.0])
                 state_isp[sId] = cnt + 1
 
-    file_ddk_log_out.close()
-    file_ddk_sfr.close()
-    file_summary.close()
+    out_path = file_path.parent / "ddk"
+    out_filename = file_path.stem
 
-    # 파일 내용이 비어 있으면 지운다.
-    if os.path.getsize(out_file_sfr) == 0:
-        os.remove(out_file_sfr)
+    Path(out_path).mkdir(parents=True, exist_ok=True)
+
+    file_ddk_log_path = out_path / Path(out_filename + "_ddk.log")
+    file_summary_path = out_path / Path(out_filename + "_ddk.summary")
+    file_sfr_path  = out_path / Path(out_filename + "_ddk.sfr")
+
+    print("--- Parsing Kernel log file: " + str(file_path))
+    print("--- Output DDK log file: " + str(file_ddk_log_path))
+    print("--- Output DDK summary file: " + str(file_summary_path))
+    print("--- Output DDK SFR file: " + str(file_sfr_path))
+
+    with open(file_ddk_log_path, 'w') as f :
+        f.writelines( [ l.src + '\n' for l in log_db ] )
+
+    if (sfr_db is not None) and (len(sfr_db) > 0) :
+        with open(file_sfr_path, 'w') as f :
+            f.writelines(sfr_db)
+
+    with open(file_summary_path, 'w') as f :
+        f.write(ddk_version)
+
 
     # print(log_db)
     # print("3aa gantt input")
