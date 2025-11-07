@@ -71,7 +71,7 @@ def main() :
     for line in lines :
         line_no = line_no + 1
 
-        found = re.findall("\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
+        found = re.findall(r"\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
         # print(found)
 
         if len(found) == 0 or len(found[0]) < 3 :
@@ -234,7 +234,7 @@ def draw_gantt(start, end, out_filename) :
             print("[{}] {}".format(i, object_isp[i]))
             gnt.broken_barh(object_isp[i], (10 * i + 12, 3), facecolors ='tab:orange')
 
-    plt.savefig(out_filename) 
+    plt.savefig(out_filename)
 
 if __name__ == "__main__":
     main()
