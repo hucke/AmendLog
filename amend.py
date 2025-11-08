@@ -41,11 +41,38 @@ def extract_ascii_from_binary(file_path : str) -> list:
     return ascii_text.splitlines()
 
 def parsing_log_lines(line : str) -> tuple:
-    found = re.findall(r"\[([\d|\.|\s]*)\]\s\[(\d)\]\s(.*)", line)
+    found = re.findall(r"\[(\s+\d+\.\d*)\]\s\[(\d)\]\s(.*)", line)
     if len(found) == 0 or len(found[0]) < 3 :
-        return False, "", "", ""
+        return False, float(0), '', ''
+    elif found[0][0].strip() == '' :
+        return False, float(0), '', ''
     else :
-        return True, found[0][0], found[0][1], found[0][2]
+        return True, float(found[0][0]), found[0][1], found[0][2]
+
+def write_output_file(input_path : Path, log_db : list, sfr_db : list, ddk_version : str) :
+    out_path = input_path.parent / "ddk"
+    out_filename = input_path.stem
+
+    Path(out_path).mkdir(parents=True, exist_ok=True)
+
+    file_ddk_log_path = out_path / Path(out_filename + "_ddk.log")
+    file_summary_path = out_path / Path(out_filename + "_ddk.summary")
+    file_sfr_path  = out_path / Path(out_filename + "_ddk.sfr")
+
+    # print("--- Parsing Kernel log file: " + str(file_path))
+    print("--- Output DDK log file: " + str(file_ddk_log_path))
+    print("--- Output DDK summary file: " + str(file_summary_path))
+    print("--- Output DDK SFR file: " + str(file_sfr_path))
+
+    with open(file_ddk_log_path, 'w') as f :
+        f.writelines( [ l.src + '\n' for l in log_db ] )
+
+    if (sfr_db is not None) and (len(sfr_db) > 0) :
+        with open(file_sfr_path, 'w') as f :
+            f.writelines(sfr_db)
+
+    with open(file_summary_path, 'w') as f :
+        f.write(ddk_version)
 
 #########################################################################
 def main() :
@@ -62,6 +89,7 @@ def main() :
     log_db = []
     sfr_db = []
 
+    print("--- Parsing Kernel log file: " + str(file_path))
     in_log = extract_ascii_from_binary(file_path)
     for line_no, line in enumerate(in_log, 1) :
 
@@ -157,29 +185,7 @@ def main() :
                 object_isp[sId].append([0.0, 0.0])
                 state_isp[sId] = cnt + 1
 
-    out_path = file_path.parent / "ddk"
-    out_filename = file_path.stem
-
-    Path(out_path).mkdir(parents=True, exist_ok=True)
-
-    file_ddk_log_path = out_path / Path(out_filename + "_ddk.log")
-    file_summary_path = out_path / Path(out_filename + "_ddk.summary")
-    file_sfr_path  = out_path / Path(out_filename + "_ddk.sfr")
-
-    print("--- Parsing Kernel log file: " + str(file_path))
-    print("--- Output DDK log file: " + str(file_ddk_log_path))
-    print("--- Output DDK summary file: " + str(file_summary_path))
-    print("--- Output DDK SFR file: " + str(file_sfr_path))
-
-    with open(file_ddk_log_path, 'w') as f :
-        f.writelines( [ l.src + '\n' for l in log_db ] )
-
-    if (sfr_db is not None) and (len(sfr_db) > 0) :
-        with open(file_sfr_path, 'w') as f :
-            f.writelines(sfr_db)
-
-    with open(file_summary_path, 'w') as f :
-        f.write(ddk_version)
+    write_output_file(file_path, log_db, sfr_db, ddk_version)
 
 
     # print(log_db)
