@@ -1,9 +1,6 @@
-import os
 import sys
-import os.path
 from pathlib import Path
 from os import path
-import re
 from lineContents import lineContents
 from draw_diagram import analyze_log
 from draw_diagram import draw_gantt
@@ -14,13 +11,7 @@ def print_version(log) :
     if i != -1 :
         return log[i:i+23] # 'DDK revision: x.x.x'
     return ""
-#########################################################################
-def check_end(log) :
-    i = log.find('is_resource_cdump dump start')
-    if i != -1 :
-        return True
-    else :
-        return False
+
 #########################################################################
 def check_parameter(param : str) -> bool :
     if path.exists(param) and path.isfile(param) :
@@ -34,15 +25,6 @@ def extract_ascii_from_binary(file_path : str) -> list:
     ascii_chars = [chr(b) for b in data if 0 <= b <= 127 ]
     ascii_text = ''.join(ascii_chars)
     return ascii_text.splitlines()
-
-def parsing_log_lines(line : str) -> tuple:
-    found = re.findall(r"\[(\s+\d+\.\d*)\]\s\[(\d)\]\s(.*)", line)
-    if len(found) == 0 or len(found[0]) < 3 :
-        return False, float(0), '', ''
-    elif found[0][0].strip() == '' :
-        return False, float(0), '', ''
-    else :
-        return True, float(found[0][0]), found[0][1], found[0][2]
 
 def write_output_file(input_path : Path, log_db : list, sfr_db : list, ddk_version : str) :
     out_path = input_path.parent / "ddk"
@@ -62,9 +44,9 @@ def write_output_file(input_path : Path, log_db : list, sfr_db : list, ddk_versi
     with open(file_ddk_log_path, 'w') as f :
         f.writelines( [ l.src + '\n' for l in log_db ] )
 
-    if (sfr_db is not None) and (len(sfr_db) > 0) :
+    if len(sfr_db) > 0 :
         with open(file_sfr_path, 'w') as f :
-            f.writelines(sfr_db)
+            f.writelines('\n'.join(sfr_db))
 
     with open(file_summary_path, 'w') as f :
         f.write(ddk_version)
@@ -74,11 +56,11 @@ def main() :
     if len(sys.argv) != 2 :
         print("amend.py <kernel log file>")
         sys.exit()
-    elif not check_parameter(sys.argv[1]) :
-        print(sys.argv[1] + " is not found.")
-        sys.exit()
 
     file_path = Path(sys.argv[1])
+    if not file_path.exists() :
+        print(sys.argv[1] + " is not found.")
+        sys.exit()
 
     ddk_version = ""
     log_db = []
@@ -88,38 +70,29 @@ def main() :
     in_log = extract_ascii_from_binary(file_path)
     for line_no, line in enumerate(in_log, 1) :
 
+        line = line.rstrip().rstrip()
         if len(line) == 0 :
             continue
-
-        ok, time, task, body = parsing_log_lines(line)
-        if not ok :
-            print(f"[W]irregular format {line_no} line")
-            print(line)
+        
+        data = lineContents(line)
+        if not data.isValid() :
+            continue
+        if data.isRegDump() :
+            sfr_db.append(data.log)
             continue
 
-        data = lineContents(time, task, body, line)
-
-        if check_end(body) :
-            print("[I]log end on {} lines".format(line_no))
-            break
-
         # save
-        if body.startswith('ISP_FimcItpChainV1P10P0::Dump') == True :
-            sfr_db.append(body + '\n')
-        elif body.startswith('Dump') == True:
-            sfr_db.append(body[5:] + '\n')        # 'Dump'를 제거하고 저장.
-        else:
-            log_db.append(data)
+        log_db.append(data)
 
         if len(ddk_version) == 0 :
-            ddk_version = print_version(body)
+            ddk_version = print_version(data.log)
 
     if len(log_db) == 0 :
         return
 
     # Sorting by time
     log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
-    print("--- log time: {} - {}".format(float(log_db[0].time), float(log_db[-1].time)))
+    print(f"--- log time: {log_db[0].time}s - {log_db[-1].time}s")
 
     write_output_file(file_path, log_db, sfr_db, ddk_version)
 
