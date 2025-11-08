@@ -36,13 +36,13 @@ def write_output_file(input_path : Path, log_db : list, sfr_db : list, ddk_versi
     file_summary_path = out_path / Path(out_filename + "_ddk.summary")
     file_sfr_path  = out_path / Path(out_filename + "_ddk.sfr")
 
-    # print("--- Parsing Kernel log file: " + str(file_path))
     print("--- Output DDK log file: " + str(file_ddk_log_path))
     print("--- Output DDK summary file: " + str(file_summary_path))
     print("--- Output DDK SFR file: " + str(file_sfr_path))
 
-    with open(file_ddk_log_path, 'w') as f :
-        f.writelines( [ l.src + '\n' for l in log_db ] )
+    if len(log_db) > 0 :
+        with open(file_ddk_log_path, 'w') as f :
+            f.writelines( [ l.src + '\n' for l in log_db ] )
 
     if len(sfr_db) > 0 :
         with open(file_sfr_path, 'w') as f :
@@ -57,8 +57,8 @@ def main() :
         print("amend.py <kernel log file>")
         sys.exit()
 
-    file_path = Path(sys.argv[1])
-    if not file_path.exists() :
+    infile_path = Path(sys.argv[1])
+    if not infile_path.exists() :
         print(sys.argv[1] + " is not found.")
         sys.exit()
 
@@ -66,8 +66,8 @@ def main() :
     log_db = []
     sfr_db = []
 
-    print("--- Parsing Kernel log file: " + str(file_path))
-    in_log = extract_ascii_from_binary(file_path)
+    print("--- Parsing Kernel log file: " + str(infile_path))
+    in_log = extract_ascii_from_binary(infile_path)
     for line_no, line in enumerate(in_log, 1) :
 
         line = line.rstrip().rstrip()
@@ -76,6 +76,7 @@ def main() :
         
         data = lineContents(line)
         if not data.isValid() :
+            print(f"!!! Invalid line at {line_no}: {line}")
             continue
         if data.isRegDump() :
             sfr_db.append(data.log)
@@ -94,12 +95,12 @@ def main() :
     log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
     print(f"--- log time: {log_db[0].time}s - {log_db[-1].time}s")
 
-    write_output_file(file_path, log_db, sfr_db, ddk_version)
+    write_output_file(infile_path, log_db, sfr_db, ddk_version)
 
 
     analyze_log(log_db)
 
-    out_path = file_path.parent / "ddk" / (file_path.stem + ".png")
+    out_path = infile_path.parent / "ddk" / (infile_path.stem + ".png")
     draw_gantt(out_path)
 
 #########################################################################
