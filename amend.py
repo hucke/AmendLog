@@ -1,17 +1,12 @@
 import os
 import sys
-import matplotlib.pyplot as plt
 import os.path
 from pathlib import Path
 from os import path
 import re
 from lineContents import lineContents
-
-begin_time = 0.0
-end_time = 0.0
-
-object_taa = []
-object_isp = []
+from draw_diagram import analyze_log
+from draw_diagram import draw_gantt
 
 #########################################################################
 def print_version(log) :
@@ -119,127 +114,23 @@ def main() :
         if len(ddk_version) == 0 :
             ddk_version = print_version(body)
 
-    if len(log_db) > 0 :
-        # Sorting by time
-        log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
-        print("--- log time: {} - {}".format(float(log_db[0].time), float(log_db[-1].time)))
+    if len(log_db) == 0 :
+        return
 
-    # Finding
-    global object_taa
-    global object_isp
-    global begin_time
-    global end_time
-
-    state_taa = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    state_isp = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    if len(log_db) > 0 :
-        begin_time = float(log_db[0].time)
-        end_time = float(log_db[-1].time)
-    else :
-        begin_time = float(0)
-        end_time = float(0)
-
-    for i in range(1, 10) :
-        object_taa.append([[0.0, 0.0]])
-        object_isp.append([[0.0, 0.0]])
-        state_taa.append(0)
-        state_isp.append(0)
-    # print(object_taa)
-
-    for l in log_db :
-        log = l.log
-        time = l.time
-
-        if log.find("DICO_Object_3aa") >= 0 :
-            # print(log + ":" + l[2].strip('\n'))
-            # print(log + ":" + l[2], end='')
-            streamId = log[ log.find("[S")+2 ]
-            sId = int(streamId)
-            cnt = state_taa[sId]
-            # print("S{} state({})".format(sId, cnt))
-            if log.find("Create") >= 0 and log.find("[E]") >= 0 :
-                object_taa[sId][cnt][0] = float(time)
-                object_taa[sId][cnt][1] = end_time - float(time)
-
-            if log.find("Destroy") >= 0 :
-                if object_taa[sId][cnt][0] == 0.0 :
-                    object_taa[sId][cnt][0] = begin_time
-                object_taa[sId][cnt][1] = float(time) - object_taa[sId][cnt][0]
-                object_taa[sId].append([0.0, 0.0])
-                state_taa[sId] = cnt + 1
-
-        if log.find("DICO_Object_Isp") >= 0 :
-            # print(log + ":" + l[2].strip('\n'))
-            # print(log + ":" + l[2], end='')
-            streamId = log[ log.find("[S")+2 ]
-            sId = int(streamId)
-            cnt = state_isp[sId]
-            if log.find("Create") >= 0 and log.find("[E]") >= 0 :
-                object_isp[sId][cnt][0] = float(time)
-                object_isp[sId][cnt][1] = end_time - float(time)
-
-            if log.find("Destroy") >= 0 :
-                if object_isp[sId][cnt][0] == 0.0 :
-                    object_isp[sId][cnt][0] = begin_time
-                object_isp[sId][cnt][1] = float(time) - object_isp[sId][cnt][0]
-                object_isp[sId].append([0.0, 0.0])
-                state_isp[sId] = cnt + 1
+    # Sorting by time
+    log_db.sort(key = lambda x : x.time) # x는 lineContents 데이터
+    print("--- log time: {} - {}".format(float(log_db[0].time), float(log_db[-1].time)))
 
     write_output_file(file_path, log_db, sfr_db, ddk_version)
 
 
-    # print(log_db)
-    # print("3aa gantt input")
-    # for info in object_taa :
-    #     print(info)
-    # print("isp gantt input")
-    # for info in object_isp :
-    #     print(info)
+    analyze_log(log_db)
 
-    # draw_gantt(begin_time, end_time, path[0] + ".png")
+    out_path = file_path.parent / "ddk" / (file_path.stem + ".png")
+    draw_gantt(out_path)
 
 #########################################################################
 
-def draw_gantt(start, end, out_filename) :
-
-    global object_taa
-    global object_isp
-
-    # Declaring a figure "gnt" 
-    fig, gnt = plt.subplots() 
-
-    # Setting Y-axis limits 
-    gnt.set_ylim(0, 80) 
-
-    # Setting X-axis limits 
-    gnt.set_xlim(start, end) 
-
-    # Setting labels for x-axis and y-axis 
-    gnt.set_xlabel('seconds since start') 
-    gnt.set_ylabel('Objects') 
-
-    # Setting ticks on y-axis 
-    gnt.set_yticks([15, 25, 35, 45, 55, 65, 75, 85, 95, 105]) 
-    # Labelling tickes of y-axis 
-    gnt.set_yticklabels(['0', '1', '2', '3', '4', '5', '6', '7', '8']) 
-
-    # Setting graph attribute 
-    gnt.grid(True) 
-
-    # Declaring a bar in schedule 
-    # Declaring multiple bars in at same level and same width 
-    
-    for i in range(0, 9) :
-        if object_taa[i][0][0] != 0.0 :
-            print("[{}] {}".format(i, object_taa[i]))
-            gnt.broken_barh(object_taa[i], (10 * i + 15, 3), facecolors ='tab:blue')
-
-    for i in range(0, 9) :
-        if object_isp[i][0][0] != 0.0 :
-            print("[{}] {}".format(i, object_isp[i]))
-            gnt.broken_barh(object_isp[i], (10 * i + 12, 3), facecolors ='tab:orange')
-
-    plt.savefig(out_filename)
 
 if __name__ == "__main__":
     main()
